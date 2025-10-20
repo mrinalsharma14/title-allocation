@@ -169,7 +169,7 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
 # Instructions:
 # - Required columns: username, password, role, name, email, capacity
-# - Role must be one of: student, supervisor, admin
+# - Role must be one of: student, supervisor, moduleAdmin
 # - Capacity: Only required for supervisors (number of students they can supervise)
 # - Email: Use university email format
 # - Remove instruction lines (starting with #) before uploading
@@ -187,86 +187,226 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 // Bulk upload users from CSV (Admin only)
 // Update CSV upload to validate capacity
 router.post('/bulk-upload', auth, authorize('admin', 'moduleAdmin'), upload.single('file'), async (req, res) => {
+  let filePath = null;
+
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    filePath = req.file.path;
     const results = [];
     const currentUserRole = req.user.role;
+    const errors = [];
+    const createdUsers = [];
 
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on('data', (data) => results.push(data))
-      .on('end', async () => {
-        try {
-          const users = [];
-          let totalStudentCount = 0;
-          let totalSupervisorCapacity = 0;
-
-          // First pass: count students and supervisor capacity
-          for (const row of results) {
-            if (row.role === 'student') totalStudentCount++;
-            if (row.role === 'supervisor') {
-              const capacity = parseInt(row.capacity) || 0;
-              totalSupervisorCapacity += capacity;
-            }
-            // Module Admin cannot create admin users
-            if (currentUserRole === 'moduleAdmin' &&
-              (row.role === 'admin' || row.role === 'moduleAdmin')) {
-              fs.unlinkSync(req.file.path);
-              return res.status(403).json({
-                message: 'Module Admin cannot create admin or module admin users'
-              });
-            }
+    // Read and parse CSV file
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(filePath)
+        .pipe(csv({
+          mapHeaders: ({ header }) => header.trim().toLowerCase(),
+          mapValues: ({ value }) => value.trim()
+        }))
+        .on('data', (data) => {
+          // Skip empty rows and comment lines
+          if (data.username && !data.username.startsWith('#')) {
+            results.push(data);
           }
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    if (results.length === 0) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ message: 'No valid user data found in CSV file' });
+    }
+
+    // Validation counters
+    let totalStudentCount = 0;
+    let totalSupervisorCapacity = 0;
+    let supervisorCount = 0; // FIX: Initialize supervisorCount
 
 
-          // Validate capacity constraint
-          if (totalSupervisorCapacity !== totalStudentCount) {
-            fs.unlinkSync(req.file.path);
-            return res.status(400).json({
-              message: `Capacity validation failed: Supervisor capacity (${totalSupervisorCapacity}) does not match student count (${totalStudentCount}). Please adjust capacities.`
-            });
-          }
+    // First pass: Validate all data
+    for (const [index, row] of results.entries()) {
+      const rowNumber = index + 2; // +2 because of header row and 0-based index
 
-          // Second pass: create users
-          for (const row of results) {
-            const password = row.password || 'default123';
-            const user = await User.create({
-              username: row.username,
-              password: password,
-              role: row.role,
-              name: row.name,
-              email: row.email,
-              capacity: row.capacity ? parseInt(row.capacity) : 0 // Add capacity
-            });
-            users.push(user);
-          }
+      // Required field validation
+      if (!row.username) {
+        errors.push(`Row ${rowNumber}: Username is required`);
+        continue;
+      }
+      if (!row.password) {
+        errors.push(`Row ${rowNumber}: Password is required`);
+        continue;
+      }
+      if (!row.role) {
+        errors.push(`Row ${rowNumber}: Role is required`);
+        continue;
+      }
+      if (!row.name) {
+        errors.push(`Row ${rowNumber}: Name is required`);
+        continue;
+      }
 
-          // Clean up uploaded file
-          fs.unlinkSync(req.file.path);
+      // Role validation - FIX: Define roleStr instead of userRole
+      const validRoles = ['student', 'supervisor', 'admin', 'moduleAdmin'];
+      const roleStr = row.role.toLowerCase(); // FIX: Changed from userRole to roleStr
 
-          res.json({
-            message: 'Users created successfully',
-            count: users.length,
-            totalStudentCount,
-            totalSupervisorCapacity,
-            users: users.map(u => ({
-              username: u.username,
-              role: u.role,
-              name: u.name,
-              capacity: u.capacity
-            }))
-          });
-        } catch (error) {
-          fs.unlinkSync(req.file.path);
-          res.status(400).json({ message: 'Error processing CSV: ' + error.message });
+      if (!validRoles.includes(roleStr)) {
+        errors.push(`Row ${rowNumber}: Invalid role '${row.role}'. Must be one of: ${validRoles.join(', ')}`);
+        continue;
+      }
+
+      // Module Admin restrictions - FIX: Use roleStr instead of userRole
+      if (currentUserRole === 'moduleAdmin' &&
+        (roleStr === 'admin' || roleStr === 'moduleAdmin')) {
+        errors.push(`Row ${rowNumber}: Module Admin cannot create admin or module admin users`);
+        continue;
+      }
+
+      // Email validation (if provided)
+      if (row.email && !User.isValidEmail(row.email)) {
+        errors.push(`Row ${rowNumber}: Invalid email format '${row.email}'`);
+        continue;
+      }
+
+      // Capacity validation for supervisors
+      if (roleStr === 'supervisor') {
+        const capacity = parseInt(row.capacity);
+        if (isNaN(capacity) || capacity < 0 || capacity > 50) {
+          errors.push(`Row ${rowNumber}: Supervisor capacity must be a number between 0 and 50`);
+          continue;
         }
+        totalSupervisorCapacity += capacity;
+        supervisorCount++; // FIX: Increment supervisor count
+      } else if (roleStr === 'student') {
+        totalStudentCount++;
+      }
+
+      // Check for duplicate usernames in CSV
+      const duplicateInCSV = results.slice(0, index).some((r, i) =>
+        r.username.toLowerCase() === row.username.toLowerCase()
+      );
+      if (duplicateInCSV) {
+        errors.push(`Row ${rowNumber}: Duplicate username '${row.username}' in CSV file`);
+        continue;
+      }
+    }
+
+    // Return validation errors if any
+    if (errors.length > 0) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({
+        message: 'Validation errors found in CSV file',
+        errors: errors.slice(0, 10) // Return first 10 errors to avoid overwhelming response
       });
+    }
+
+    // Validate capacity constraint - capacity must be AT LEAST student count
+    if (totalSupervisorCapacity < totalStudentCount) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({
+        message: `Capacity validation failed: Total supervisor capacity (${totalSupervisorCapacity}) is less than total student count (${totalStudentCount}). Please increase supervisor capacities.`,
+        totalStudentCount,
+        totalSupervisorCapacity,
+        supervisorCount,
+        requiredAdditionalCapacity: totalStudentCount - totalSupervisorCapacity
+      });
+    }
+
+    // Second pass: Create users
+    for (const row of results) {
+      try {
+        // Check if user already exists in database
+        const existingUser = await User.findByUsername(row.username);
+        if (existingUser) {
+          errors.push(`Username '${row.username}' already exists in database`);
+          continue;
+        }
+
+        const userData = {
+          username: row.username,
+          password: row.password,
+          role: row.role.toLowerCase(),
+          name: row.name,
+          email: row.email || '',
+          capacity: row.role.toLowerCase() === 'supervisor' ? parseInt(row.capacity) : 0
+        };
+
+        const user = await User.create(userData);
+        createdUsers.push({
+          username: user.username,
+          role: user.role,
+          name: user.name,
+          email: user.email,
+          capacity: user.capacity
+        });
+
+      } catch (error) {
+        errors.push(`Error creating user '${row.username}': ${error.message}`);
+      }
+    }
+
+    // Clean up uploaded file
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Prepare response
+    // const response = {
+    //   message: `Bulk upload completed: ${createdUsers.length} users created successfully`,
+    //   createdCount: createdUsers.length,
+    //   totalStudentCount,
+    //   totalSupervisorCapacity,
+    //   createdUsers,
+    //   warnings: errors.length > 0 ? errors : undefined
+    // };
+
+    // if (createdUsers.length === 0) {
+    //   return res.status(400).json({
+    //     message: 'No users were created due to errors',
+    //     errors
+    //   });
+    // }
+
+    // res.json(response);
+    // Prepare response
+    const response = {
+      success: true,
+      message: `Bulk upload completed: ${createdUsers.length} users created successfully`,
+      createdCount: createdUsers.length,
+      totalStudentCount,
+      totalSupervisorCapacity,
+      supervisorCount,
+      capacityUtilization: totalSupervisorCapacity > 0 ?
+        `${Math.round((totalStudentCount / totalSupervisorCapacity) * 100)}%` : '0%',
+      createdUsers: createdUsers,
+      warnings: errors.length > 0 ? errors : []
+    };
+
+    if (createdUsers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No users were created due to errors',
+        errors: errors
+      });
+    }
+
+    // Return successful response
+    res.json(response);
+
   } catch (error) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    res.status(500).json({ message: 'Error uploading file' });
+    // Clean up uploaded file on error
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    console.error('Bulk upload error:', error);
+    res.status(500).json({
+      message: 'Error processing bulk upload: ' + error.message
+    });
   }
 });
 

@@ -517,6 +517,206 @@ class AdminDashboard {
         $('#user-search').on('input', () => this.filterUsers());
     }
 
+    async handleBulkUpload(e) {
+        e.preventDefault();
+
+        const fileInput = $('#bulk-upload-file')[0];
+        const file = fileInput.files[0];
+
+        if (!file) {
+            await SweetAlert.error('Please select a CSV file to upload');
+            return;
+        }
+
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            await SweetAlert.error('Please select a CSV file');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            await SweetAlert.error('File size must be less than 5MB');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            SweetAlert.loading('Processing bulk upload...');
+
+            const response = await $.ajax({
+                url: '/api/users/bulk-upload',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                data: formData,
+                processData: false,
+                contentType: false,
+                timeout: 60000 // 60 second timeout
+            });
+
+            SweetAlert.close();
+
+            // In the success message part of handleBulkUpload:
+            let successMessage = `
+  <div class="text-left">
+    <p><strong>${response.message}</strong></p>
+    <div class="mt-3 space-y-1 text-sm">
+      <p>🎓 <strong>Students:</strong> ${response.totalStudentCount}</p>
+      ${response.supervisorCount !== undefined ? `<p>👨‍🏫 <strong>Supervisors:</strong> ${response.supervisorCount}</p>` : ''}
+      <p>📊 <strong>Total Capacity:</strong> ${response.totalSupervisorCapacity}</p>
+      ${response.capacityUtilization ? `<p>📈 <strong>Capacity Utilization:</strong> ${response.capacityUtilization}</p>` : ''}
+      <p>✅ <strong>Created:</strong> ${response.createdCount} users</p>
+    </div>
+// `;
+
+//             // Build success message with details
+//             let successMessage = `
+//       <div class="text-left">
+//         <p><strong>${response.message}</strong></p>
+//         <div class="mt-3 space-y-1 text-sm">
+//           <p>🎓 <strong>Students:</strong> ${response.totalStudentCount}</p>
+//           <p>👨‍🏫 <strong>Supervisors:</strong> ${response.supervisorCount}</p>
+//           <p>📊 <strong>Total Capacity:</strong> ${response.totalSupervisorCapacity}</p>
+//           ${response.capacityUtilization ? `<p>📈 <strong>Capacity Utilization:</strong> ${response.capacityUtilization}</p>` : ''}
+//           <p>✅ <strong>Created:</strong> ${response.createdCount} users</p>
+//         </div>
+//     `;
+
+            // Handle warnings if they exist
+            if (response.warnings && response.warnings.length > 0) {
+                successMessage += `
+        <div class="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+          <p class="font-semibold text-yellow-800">⚠️ Warnings (${response.warnings.length}):</p>
+          <ul class="text-xs text-yellow-700 mt-1 max-h-32 overflow-y-auto">
+            ${response.warnings.slice(0, 8).map(warning => `<li class="truncate">• ${this.escapeHtml(warning)}</li>`).join('')}
+            ${response.warnings.length > 8 ? `<li>... and ${response.warnings.length - 8} more warnings</li>` : ''}
+          </ul>
+        </div>
+      `;
+            }
+
+            // Show created users preview
+            if (response.createdUsers && response.createdUsers.length > 0) {
+                successMessage += `
+        <div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+          <p class="font-semibold text-green-800">📝 Created Users (${response.createdUsers.length}):</p>
+          <ul class="text-xs text-green-700 mt-1 max-h-32 overflow-y-auto">
+            ${response.createdUsers.slice(0, 10).map(user =>
+                    `<li class="truncate">• ${this.escapeHtml(user.username)} (${user.role}) - ${this.escapeHtml(user.name)}</li>`
+                ).join('')}
+            ${response.createdUsers.length > 10 ? `<li>... and ${response.createdUsers.length - 10} more users</li>` : ''}
+          </ul>
+        </div>
+      `;
+            }
+
+            successMessage += `</div>`;
+
+            await Swal.fire({
+                title: 'Bulk Upload Successful!',
+                html: successMessage,
+                icon: 'success',
+                confirmButtonText: 'OK',
+                width: 600
+            });
+
+            // Reset form and reload users
+            $('#bulk-upload-form')[0].reset();
+            this.loadUsersData();
+
+        } catch (error) {
+            SweetAlert.close();
+
+            console.error('Upload error:', error);
+
+            // Check if it's a validation error from the server
+            if (error.responseJSON) {
+                const serverError = error.responseJSON;
+
+                // Handle validation errors
+                if (serverError.errors && Array.isArray(serverError.errors)) {
+                    const errors = serverError.errors.slice(0, 10);
+                    const errorHtml = `
+          <div class="text-left">
+            <p class="font-semibold text-red-700 mb-3">${serverError.message || 'Validation errors found:'}</p>
+            <div class="bg-red-50 border border-red-200 rounded p-3 max-h-60 overflow-y-auto">
+              <ul class="text-sm text-red-700 space-y-1">
+                ${errors.map(err => `<li>• ${this.escapeHtml(err)}</li>`).join('')}
+              </ul>
+              ${serverError.errors.length > 10 ?
+                            `<p class="text-xs text-red-600 mt-2">... and ${serverError.errors.length - 10} more errors</p>` : ''}
+            </div>
+            ${serverError.totalStudentCount !== undefined ? `
+              <div class="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                <p class="text-sm font-semibold text-blue-800">Capacity Summary:</p>
+                <ul class="text-xs text-blue-700 mt-1">
+                  <li>Students: ${serverError.totalStudentCount}</li>
+                  <li>Supervisor Capacity: ${serverError.totalSupervisorCapacity}</li>
+                  ${serverError.requiredAdditionalCapacity ?
+                                `<li class="text-red-600">Additional Capacity Needed: ${serverError.requiredAdditionalCapacity}</li>` : ''}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+                    await Swal.fire({
+                        title: 'Upload Failed',
+                        html: errorHtml,
+                        icon: 'error',
+                        confirmButtonText: 'OK',
+                        width: 600
+                    });
+                    return;
+                }
+
+                // Handle other server errors
+                if (serverError.message) {
+                    await SweetAlert.error(serverError.message);
+                    return;
+                }
+            }
+
+            // Handle network errors
+            if (error.status === 0 || error.statusText === 'error') {
+                await Swal.fire({
+                    title: 'Upload Completed with Network Issue',
+                    html: `
+          <div class="text-left">
+            <p>✅ Users were created successfully, but there was a network issue receiving the confirmation.</p>
+            <p class="mt-2 text-sm text-gray-600">Please check the users list to verify the upload was complete.</p>
+          </div>
+        `,
+                    icon: 'warning',
+                    confirmButtonText: 'Check Users'
+                });
+
+                // Reset form and reload users anyway
+                $('#bulk-upload-form')[0].reset();
+                this.loadUsersData();
+                return;
+            }
+
+            // Generic error
+            await SweetAlert.error('Upload failed: ' + (error.statusText || 'Unknown error'));
+        }
+    }
+
+    // Add helper method to escape HTML (prevent XSS)
+    escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe
+            .toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+
     // Add this method to the AdminDashboard class
     downloadCSVTemplate() {
         try {
