@@ -4,10 +4,10 @@ const { runAllocation, getAllocations, getAllocationStats, publishAllocations, u
 
 const router = express.Router();
 
-router.post('/run', auth, authorize('admin'), runAllocation);
+router.post('/run', auth, authorize('admin', 'moduleAdmin'), runAllocation);
 router.get('/', auth, getAllocations);
-router.get('/stats', auth, authorize('admin'), getAllocationStats);
-router.post('/publish', auth, authorize('admin'), publishAllocations);
-router.post('/unpublish', auth, authorize('admin'), unpublishAllocations);
+router.get('/stats', auth, authorize('admin', 'moduleAdmin'), getAllocationStats);
+router.post('/publish', auth, authorize('admin', 'moduleAdmin'), publishAllocations);
+router.post('/unpublish', auth, authorize('admin', 'moduleAdmin'), unpublishAllocations);
 
 module.exports = router;

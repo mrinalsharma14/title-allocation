@@ -1,6 +1,7 @@
 const express = require('express');
-const { auth, authorize } = require('../middleware/auth');
+const { auth, authorize, requireAdmin } = require('../middleware/auth');
 const User = require('../models/User');
+
 const { ObjectId } = require('mongodb');
 const csv = require('csv-parser');
 const multer = require('multer');
@@ -25,9 +26,17 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
 });
 
 // Create single user (Admin only)
-router.post('/', auth, authorize('admin'), async (req, res) => {
+// Update the user creation route to restrict admin creation
+router.post('/', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { username, password, role, name, email, capacity } = req.body;
+
+    // Module Admin cannot create admin users
+    if (req.user.role === 'moduleAdmin' && (role === 'admin' || role === 'moduleAdmin')) {
+      return res.status(403).json({
+        message: 'Module Admin cannot create admin or module admin users'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findByUsername(username);
@@ -96,7 +105,7 @@ router.put('/:id/capacity', auth, authorize('admin'), async (req, res) => {
 });
 
 // Delete user (Admin only)
-router.delete('/:id', auth, authorize('admin'), async (req, res) => {
+router.delete('/:id', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -104,6 +113,14 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Module Admin cannot delete admin users
+    if (req.user.role === 'moduleAdmin' &&
+      (user.role === 'admin' || user.role === 'moduleAdmin')) {
+      return res.status(403).json({
+        message: 'Module Admin cannot delete admin or module admin users'
+      });
     }
 
     // Prevent deleting yourself
@@ -169,13 +186,15 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
 // Bulk upload users from CSV (Admin only)
 // Update CSV upload to validate capacity
-router.post('/bulk-upload', auth, authorize('admin'), upload.single('file'), async (req, res) => {
+router.post('/bulk-upload', auth, authorize('admin', 'moduleAdmin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
     const results = [];
+    const currentUserRole = req.user.role;
+
     fs.createReadStream(req.file.path)
       .pipe(csv())
       .on('data', (data) => results.push(data))
@@ -192,7 +211,16 @@ router.post('/bulk-upload', auth, authorize('admin'), upload.single('file'), asy
               const capacity = parseInt(row.capacity) || 0;
               totalSupervisorCapacity += capacity;
             }
+            // Module Admin cannot create admin users
+            if (currentUserRole === 'moduleAdmin' &&
+              (row.role === 'admin' || row.role === 'moduleAdmin')) {
+              fs.unlinkSync(req.file.path);
+              return res.status(403).json({
+                message: 'Module Admin cannot create admin or module admin users'
+              });
+            }
           }
+
 
           // Validate capacity constraint
           if (totalSupervisorCapacity !== totalStudentCount) {

@@ -22,7 +22,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Create title (Supervisor and Admin)
-router.post('/', auth, authorize('supervisor', 'admin'), async (req, res) => {
+router.post('/', auth, authorize('supervisor', 'admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { title, description } = req.body;
 
@@ -41,7 +41,7 @@ router.post('/', auth, authorize('supervisor', 'admin'), async (req, res) => {
 });
 
 // Update title status (Admin only)
-router.patch('/:id/status', auth, authorize('admin'), async (req, res) => {
+router.patch('/:id/status', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -58,7 +58,7 @@ router.patch('/:id/status', auth, authorize('admin'), async (req, res) => {
 });
 
 // Update title (Admin only)
-router.put('/:id', auth, authorize('supervisor', 'admin'), async (req, res) => {
+router.put('/:id', auth, authorize('supervisor', 'admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description } = req.body;
@@ -89,7 +89,7 @@ router.put('/:id', auth, authorize('supervisor', 'admin'), async (req, res) => {
 });
 
 // Delete title (Admin & Supervisor only)
-router.delete('/:id', auth, authorize('supervisor', 'admin'), async (req, res) => {
+router.delete('/:id', auth, authorize('supervisor', 'admin', 'moduleAdmin'), async (req, res) => {
   try {
     const { id } = req.params;
 

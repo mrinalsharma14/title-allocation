@@ -4,7 +4,7 @@ const { assignSecondMarkers, getSecondMarkerAssignments } = require('../controll
 
 const router = express.Router();
 
-router.post('/assign', auth, authorize('admin'), assignSecondMarkers);
-router.get('/assignments', auth, authorize('admin'), getSecondMarkerAssignments);
+router.post('/assign', auth, authorize('admin', 'moduleAdmin'), assignSecondMarkers);
+router.get('/assignments', auth, authorize('admin', 'moduleAdmin'), getSecondMarkerAssignments);
 
 module.exports = router;

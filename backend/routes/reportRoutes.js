@@ -7,7 +7,7 @@ const XLSX = require('xlsx');
 
 const router = express.Router();
 
-router.get('/excel', auth, authorize('admin'), async (req, res) => {
+router.get('/excel', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         console.log('=== Starting Report Generation ===');
 

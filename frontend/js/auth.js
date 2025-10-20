@@ -79,6 +79,9 @@ class Auth {
             case 'admin':
                 this.loadAdminDashboard(content);
                 break;
+            case 'moduleAdmin':
+                this.loadAdminDashboard(content);
+                break;
             case 'supervisor':
                 this.loadSupervisorDashboard(content);
                 break;

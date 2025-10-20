@@ -8,7 +8,7 @@ const { ObjectId } = require('mongodb');
 const router = express.Router();
 
 // Get capacity conflicts from the allocation process
-router.get('/conflicts', auth, authorize('admin'), async (req, res) => {
+router.get('/conflicts', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         // Get current allocations to understand supervisor utilization
         const allocations = await Allocation.getAll();
@@ -122,7 +122,7 @@ router.get('/conflicts', auth, authorize('admin'), async (req, res) => {
 });
 
 // Resolve capacity conflict and trigger re-allocation if needed
-router.post('/resolve', auth, authorize('admin'), async (req, res) => {
+router.post('/resolve', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { studentId, action, newSupervisorId, rejectReason } = req.body;
 
@@ -194,7 +194,7 @@ router.post('/resolve', auth, authorize('admin'), async (req, res) => {
 });
 
 // Get available supervisors with capacity
-router.get('/available-supervisors', auth, authorize('admin'), async (req, res) => {
+router.get('/available-supervisors', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const supervisors = await User.getAllByRole('supervisor');
         const availableSupervisors = [];

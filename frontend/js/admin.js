@@ -372,6 +372,13 @@ class AdminDashboard {
 
     loadUserManagement() {
         const content = $('#admin-content');
+
+        const roleOptions = `
+    <option value="student">Student</option>
+    <option value="supervisor">Supervisor</option>
+    <option value="moduleAdmin">Module Admin</option>
+`;
+
         content.html(`
         <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-bold mb-6">User Management</h2>
@@ -417,10 +424,8 @@ class AdminDashboard {
                         <label class="block text-sm font-medium mb-2">Role *</label>
                         <select id="new-role" required 
                                 class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Role</option>
-                            <option value="student">Student</option>
-                            <option value="supervisor">Supervisor</option>
-                            <option value="admin">Admin</option>
+                        <option value="">Select Role</option>
+                        ${roleOptions}
                         </select>
                     </div>
                     <div>
@@ -525,7 +530,7 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
 # Instructions:
 # - Required columns: username, password, role, name, email, capacity
-# - Role must be one of: student, supervisor, admin
+# - Role must be one of: student, supervisor, moduleAdmin
 # - Capacity: Only required for supervisors (number of students they can supervise)
 # - Email: Use university email format
 # - Remove instruction lines (starting with #) before uploading
@@ -871,8 +876,9 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
         users.forEach(user => {
             const roleBadge = user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                user.role === 'supervisor' ? 'bg-blue-100 text-blue-800' :
-                    'bg-green-100 text-green-800';
+                user.role === 'moduleAdmin' ? 'bg-purple-100 text-purple-800' :
+                    user.role === 'supervisor' ? 'bg-blue-100 text-blue-800' :
+                        'bg-green-100 text-green-800';
 
             // Check if this is the main System Administrator (username 'admin')
             const isSystemAdmin = user.username === 'admin';

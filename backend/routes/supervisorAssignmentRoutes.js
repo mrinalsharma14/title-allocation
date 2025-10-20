@@ -26,7 +26,7 @@ const calculateSupervisorCapacity = async (supervisors) => {
 };
 
 // Get allocations needing supervisor assignment
-router.get('/needs-supervisor', auth, authorize('admin'), async (req, res) => {
+router.get('/needs-supervisor', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const allocations = await Allocation.getNeedsSupervisor();
         const supervisors = await User.getAllByRole('supervisor');
@@ -45,7 +45,7 @@ router.get('/needs-supervisor', auth, authorize('admin'), async (req, res) => {
 });
 
 // Assign supervisor to allocation
-router.post('/:allocationId/assign-supervisor', auth, authorize('admin'), async (req, res) => {
+router.post('/:allocationId/assign-supervisor', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { allocationId } = req.params;
         const { supervisorId } = req.body;
@@ -93,7 +93,7 @@ router.post('/:allocationId/assign-supervisor', auth, authorize('admin'), async 
 });
 
 // Auto-assign supervisors to all pending allocations
-router.post('/auto-assign', auth, authorize('admin'), async (req, res) => {
+router.post('/auto-assign', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const allocations = await Allocation.getNeedsSupervisor();
         const supervisors = await User.getAllByRole('supervisor');

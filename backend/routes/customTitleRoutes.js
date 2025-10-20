@@ -8,7 +8,7 @@ const { ObjectId } = require('mongodb');
 const router = express.Router();
 
 // Get all custom titles with status (Admin only)
-router.get('/', auth, authorize('admin'), async (req, res) => {
+router.get('/', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const preferences = await Preference.getAll();
         const students = await User.getAllByRole('student');
@@ -45,7 +45,7 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
 });
 
 // Approve custom title (Admin only) - WITH CAPACITY CHECK
-router.post('/:studentId/approve', auth, authorize('admin'), async (req, res) => {
+router.post('/:studentId/approve', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { studentId } = req.params;
         const { supervisorId } = req.body;
@@ -100,7 +100,7 @@ router.post('/:studentId/approve', auth, authorize('admin'), async (req, res) =>
 });
 
 // Reject custom title (Admin only)
-router.post('/:studentId/reject', auth, authorize('admin'), async (req, res) => {
+router.post('/:studentId/reject', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { studentId } = req.params;
         const { reason } = req.body;

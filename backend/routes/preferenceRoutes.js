@@ -58,7 +58,7 @@ router.post('/', auth, authorize('student'), async (req, res) => {
 });
 
 // Get all preferences (Admin only)
-router.get('/all', auth, authorize('admin'), async (req, res) => {
+router.get('/all', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const preferences = await Preference.getAll();
         res.json(preferences);
@@ -68,7 +68,7 @@ router.get('/all', auth, authorize('admin'), async (req, res) => {
 });
 
 // Get custom titles (Admin only)
-router.get('/custom-titles', auth, authorize('admin'), async (req, res) => {
+router.get('/custom-titles', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const preferences = await Preference.getAll();
         const students = await User.getAllByRole('student');
@@ -95,7 +95,7 @@ router.get('/custom-titles', auth, authorize('admin'), async (req, res) => {
 });
 
 // Get all student choices with preferences and custom titles (Admin only)
-router.get('/student-choices', auth, authorize('admin'), async (req, res) => {
+router.get('/student-choices', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const preferences = await Preference.getAll();
         const students = await User.getAllByRole('student');

@@ -8,9 +8,16 @@ class User {
   }
 
   static async create(userData) {
+    
     // Validate input
     if (!userData.username || !userData.password) {
       throw new Error('Username and password are required');
+    }
+
+    // Validate role
+    const validRoles = ['student', 'supervisor', 'admin', 'moduleAdmin'];
+    if (!validRoles.includes(userData.role)) {
+      throw new Error('Invalid role');
     }
 
     // Validate email format if provided

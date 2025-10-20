@@ -16,7 +16,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Update preference deadline (Admin only)
-router.post('/preference-deadline', auth, authorize('admin'), async (req, res) => {
+router.post('/preference-deadline', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { deadline } = req.body;
         await SystemSettings.updatePreferenceDeadline(deadline);
@@ -28,7 +28,7 @@ router.post('/preference-deadline', auth, authorize('admin'), async (req, res) =
 });
 
 // Set allocation completed status (Admin only)
-router.post('/allocation-completed', auth, authorize('admin'), async (req, res) => {
+router.post('/allocation-completed', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { completed } = req.body;
         await SystemSettings.setAllocationCompleted(completed);
@@ -59,7 +59,7 @@ router.get('/can-edit-preferences', auth, async (req, res) => {
 });
 
 // Update title submission deadline (Admin only)
-router.post('/title-submission-deadline', auth, authorize('admin'), async (req, res) => {
+router.post('/title-submission-deadline', auth, authorize('admin', 'moduleAdmin'), async (req, res) => {
     try {
         const { deadline } = req.body;
         await SystemSettings.updateTitleSubmissionDeadline(deadline);
