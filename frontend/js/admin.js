@@ -17,6 +17,11 @@ class AdminDashboard {
         $(document).on('click', '.reject-title', (e) => this.rejectTitle(e));
         $(document).on('click', '.edit-title', (e) => this.editTitle(e));
         $(document).on('click', '.delete-title', (e) => this.deleteTitle(e));
+        $(document).on('click', '.new-supervisor-select', (e) => this.stopPropagation(e));
+
+        // $(document).on('click', '.new-supervisor-select', (e) => {
+        //     e.stopPropagation();
+        // });
 
         // User management
         $(document).on('click', '#upload-users-btn', () => this.showUploadModal());
@@ -37,6 +42,8 @@ class AdminDashboard {
         // Supervisor Assignment
         $(document).on('click', '#supervisor-assignment-card', () => this.loadSupervisorAssignment());
 
+
+
         // Publish / Unpublish
         $(document).on('click', '#allocation-management-card', () => this.loadAllocationManagement());
         $(document).on('click', '#publish-allocations-btn', () => this.publishAllocations());
@@ -44,6 +51,7 @@ class AdminDashboard {
     }
 
     async loadTitleManagement() {
+
         try {
             const response = await $.ajax({
                 url: '/api/titles',
@@ -119,6 +127,288 @@ class AdminDashboard {
             $('#admin-content').html('<div class="text-red-500">Error loading titles</div>');
         }
     }
+
+
+    async loadEditableAllocations() {
+        // Initialize pending changes
+        if (!this.pendingAllocationChanges) {
+            this.pendingAllocationChanges = {};
+        }
+        try {
+            const [allocations, supervisors, settings] = await Promise.all([
+                $.ajax({
+                    url: '/api/allocations',
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                }),
+                $.ajax({
+                    url: '/api/users/supervisors',
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                }),
+                $.ajax({
+                    url: '/api/system-settings/allocation-status',
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                })
+            ]);
+
+            const allocationPublished = settings.allocationPublished;
+
+            let html = `
+      <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold">Edit Allocations</h2>
+    <div class="flex space-x-2">
+      <button id="save-allocation-changes-btn"
+              class="bg-gray-400 text-white px-4 py-2 rounded cursor-not-allowed" disabled>
+        Save All Changes
+      </button>
+<button id="back-to-view-mode-btn"
+        class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+    Back to View Mode
+</button>
+    </div>
+  </div>
+
+
+        ${allocationPublished ? `
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <p class="text-yellow-800">
+              <strong>Note:</strong> Allocations are currently published. Changes will be immediately visible to students and supervisors.
+            </p>
+          </div>
+        ` : `
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-blue-800">
+              <strong>Edit Mode:</strong> Allocations are not published yet. You can make changes without affecting students.
+            </p>
+          </div>
+        `}
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full table-auto">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Supervisor</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Supervisor</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+    `;
+
+            allocations.forEach(allocation => {
+                // Build supervisor option list and preselect the current one
+                const supervisorOptions = supervisors.map(s => `
+        <option value="${s._id}" ${allocation.supervisorId === s._id ? 'selected' : ''}>
+          ${s.name} (Capacity: ${s.capacity ?? 0})
+        </option>
+      `).join('');
+
+                html += `
+    <tr>
+        <td>${allocation.studentName}<br/><small class="text-gray-500">${allocation.studentUsername}</small></td>
+        <td>${allocation.title}${allocation.isCustomTitle ? '<span class="ml-2 inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Custom</span>' : ''}</td>
+        <td>${allocation.supervisorName ?? 'Not Assigned'}</td>
+        <td>
+            <select class="new-supervisor-select form-select border border-gray-300 rounded px-3 py-2"
+                    data-allocation-id="${allocation._id}"
+                    data-old-supervisor-id="${allocation.supervisorId ?? ''}">
+                <option value="">No Supervisor</option>
+                ${supervisorOptions}
+            </select>
+        </td>
+        <td>${allocation.isCustomTitle ? 'Custom' : 'Regular'}</td>
+        <td>${allocation.needsSupervisor ? 'Needs Supervisor' : 'Complete'}</td>
+    </tr>
+`;
+
+            });
+
+            html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+            // Inject the view once
+            $('#admin-content').html(html);
+
+            // Bind edit events ONCE
+            this.attachAllocationEditEvents(supervisors);
+
+            $('#admin-content').off('click', '#back-to-view-mode-btn')
+                .on('click', '#back-to-view-mode-btn', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.loadAllocationManagement();
+                });
+
+        } catch (error) {
+            console.error('Error loading editable allocations:', error);
+            $('#admin-content').html('<div class="text-red-500">Error loading allocations for editing</div>');
+        }
+    }
+
+
+    attachAllocationEditEvents(supervisors) {
+        // Initialize pending changes as instance property
+        if (!this.pendingAllocationChanges) {
+            this.pendingAllocationChanges = {};
+        }
+
+        // Remove any existing event handlers to prevent duplicates
+        $('#admin-content').off('change', '.new-supervisor-select');
+        $('#admin-content').off('click', '#save-allocation-changes-btn');
+
+        // Supervisor select change events
+        $('#admin-content').on('change', '.new-supervisor-select', (e) => {
+            const $select = $(e.target);
+            const allocationId = $select.data('allocation-id');
+            const oldSupervisorId = ($select.data('old-supervisor-id') || '').toString();
+            const newSupervisorId = ($select.val() || '').toString();
+
+            console.log('Selection changed:', { allocationId, oldSupervisorId, newSupervisorId });
+
+            if (!newSupervisorId || newSupervisorId === oldSupervisorId) {
+                delete this.pendingAllocationChanges[allocationId];
+                $select.removeClass('border-yellow-400 border-green-400').addClass('border-gray-300');
+            } else {
+                this.pendingAllocationChanges[allocationId] = {
+                    newSupervisorId: newSupervisorId,
+                    oldSupervisorId: oldSupervisorId
+                };
+                $select.removeClass('border-gray-300').addClass('border-yellow-400');
+            }
+
+            // Update save button visibility based on changes
+            this.updateSaveButtonVisibility();
+        });
+
+        // Save button click event - only trigger when button is actually clicked
+        $('#admin-content').on('click', '#save-allocation-changes-btn', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.saveAllocationChanges();
+        });
+
+        // Initialize save button state
+        this.updateSaveButtonVisibility();
+    }
+
+    updateSaveButtonVisibility() {
+        const $saveBtn = $('#save-allocation-changes-btn');
+        if (!$saveBtn.length) return;
+
+        const hasChanges = this.pendingAllocationChanges && Object.keys(this.pendingAllocationChanges).length > 0;
+
+        if (hasChanges) {
+            $saveBtn.prop('disabled', false)
+                .removeClass('bg-gray-400 cursor-not-allowed')
+                .addClass('bg-green-500 hover:bg-green-600 cursor-pointer');
+        } else {
+            $saveBtn.prop('disabled', true)
+                .removeClass('bg-green-500 hover:bg-green-600 cursor-pointer')
+                .addClass('bg-gray-400 cursor-not-allowed');
+        }
+    }
+
+    async saveAllocationChanges() {
+        // Prevent the method from running if there are truly no changes
+        if (!this.pendingAllocationChanges || Object.keys(this.pendingAllocationChanges).length === 0) {
+            // Only show the info alert if this method was explicitly called (via button click)
+            // but don't prevent the user from interacting with the dropdowns
+            const $saveBtn = $('#save-allocation-changes-btn');
+            if ($saveBtn.is(':focus') || event?.type === 'click') {
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'No Changes',
+                    text: 'There are no changes to save.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+            return;
+        }
+
+        const changes = Object.entries(this.pendingAllocationChanges).map(([allocationId, change]) => ({
+            allocationId,
+            newSupervisorId: change.newSupervisorId
+        }));
+
+        const confirm = await Swal.fire({
+            title: 'Save Changes?',
+            text: `You are about to save ${changes.length} change(s). This will update supervisor assignments.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Save Changes',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#10B981',
+            cancelButtonColor: '#6B7280'
+        });
+
+        if (!confirm.isConfirmed) return;
+
+        try {
+            // Show loading state
+            const $saveBtn = $('#save-allocation-changes-btn');
+            const originalText = $saveBtn.html();
+            $saveBtn.html('<i class="fas fa-spinner fa-spin mr-2"></i>Saving...');
+            $saveBtn.prop('disabled', true);
+
+            const response = await $.ajax({
+                url: '/api/allocations/admin/batch-update-supervisors',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ changes })
+            });
+
+            // Reset pending changes
+            this.pendingAllocationChanges = {};
+
+            // Reset all select borders
+            $('.new-supervisor-select').removeClass('border-yellow-400 border-green-400').addClass('border-gray-300');
+
+            // Update save button
+            this.updateSaveButtonVisibility();
+
+            await Swal.fire({
+                title: 'Success!',
+                text: response.message || 'Changes saved successfully!',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#10B981'
+            });
+
+            // Refresh the data
+            await this.loadEditableAllocations();
+
+        } catch (error) {
+            console.error('Error saving changes:', error);
+
+            // Restore save button
+            const $saveBtn = $('#save-allocation-changes-btn');
+            $saveBtn.html('Save All Changes');
+            $saveBtn.prop('disabled', false);
+
+            this.updateSaveButtonVisibility();
+
+            await Swal.fire({
+                title: 'Error',
+                text: error.responseJSON?.message || 'Failed to save changes. Please try again.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#EF4444'
+            });
+        }
+    }
+
 
     showAddTitleModal() {
         const modalHtml = `
@@ -571,18 +861,18 @@ class AdminDashboard {
     </div>
 // `;
 
-//             // Build success message with details
-//             let successMessage = `
-//       <div class="text-left">
-//         <p><strong>${response.message}</strong></p>
-//         <div class="mt-3 space-y-1 text-sm">
-//           <p>🎓 <strong>Students:</strong> ${response.totalStudentCount}</p>
-//           <p>👨‍🏫 <strong>Supervisors:</strong> ${response.supervisorCount}</p>
-//           <p>📊 <strong>Total Capacity:</strong> ${response.totalSupervisorCapacity}</p>
-//           ${response.capacityUtilization ? `<p>📈 <strong>Capacity Utilization:</strong> ${response.capacityUtilization}</p>` : ''}
-//           <p>✅ <strong>Created:</strong> ${response.createdCount} users</p>
-//         </div>
-//     `;
+            //             // Build success message with details
+            //             let successMessage = `
+            //       <div class="text-left">
+            //         <p><strong>${response.message}</strong></p>
+            //         <div class="mt-3 space-y-1 text-sm">
+            //           <p>🎓 <strong>Students:</strong> ${response.totalStudentCount}</p>
+            //           <p>👨‍🏫 <strong>Supervisors:</strong> ${response.supervisorCount}</p>
+            //           <p>📊 <strong>Total Capacity:</strong> ${response.totalSupervisorCapacity}</p>
+            //           ${response.capacityUtilization ? `<p>📈 <strong>Capacity Utilization:</strong> ${response.capacityUtilization}</p>` : ''}
+            //           <p>✅ <strong>Created:</strong> ${response.createdCount} users</p>
+            //         </div>
+            //     `;
 
             // Handle warnings if they exist
             if (response.warnings && response.warnings.length > 0) {
@@ -844,24 +1134,28 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
             const allocationPublished = settings.allocationPublished;
 
             let html = `
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Allocation Management</h2>
-                    <div class="flex space-x-2">
-                        ${!allocationCompleted ? `
-                            <button id="run-allocation-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
-                                Run Allocation
-                            </button>
-                        ` : ''}
-                        ${allocationCompleted && !allocationPublished ? `
-                            <button id="publish-allocations-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                                Publish to Students & Supervisors
-                            </button>
-                        ` : ''}
-                        ${allocationPublished ? `
-                            <button id="unpublish-allocations-btn" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
-                                Unpublish Allocations
-                            </button>
+ <div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold">Allocation Management</h2>
+      <div class="flex space-x-2">
+        ${!allocationCompleted ? `
+          <button id="run-allocation-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Run Allocation
+          </button>
+        ` : ''}
+        ${allocationCompleted && !allocationPublished ? `
+          <button id="publish-allocations-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+            Publish to Students & Supervisors
+          </button>
+          <button id="edit-allocations-btn" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+            Edit Allocations
+          </button>
+        ` : ''}
+        ${allocationPublished ? `
+          <button id="unpublish-allocations-btn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+            Unpublish Allocations
+          </button>
+
                         ` : ''}
                     </div>
                 </div>
@@ -909,6 +1203,16 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
                     </div>
                 </div>
         `;
+
+
+            if (allocationCompleted && !allocationPublished) {
+                html += `
+                    <div class="mt-3">
+                    <button id="edit-allocations-btn" class="btn btn-primary">Edit Allocations (Unpublished)</button>
+                    </div>
+                `;
+            }
+
 
             // Add allocation preview table
             if (allocationCompleted && allocations.length > 0) {
@@ -967,6 +1271,16 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
             html += `</div>`;
             $('#admin-content').html(html);
+
+            // $(document).off('click', '#edit-allocations-btn')
+            //     .on('click', () => this.loadEditableAllocations());
+            // $('#edit-allocations-btn').off('click').on('click', () => this.loadEditableAllocations());
+
+            $('#edit-allocations-btn').on('click', () => this.loadEditableAllocations());
+            $('#publish-allocations-btn').on('click', () => this.publishAllocations());
+            $('#unpublish-allocations-btn').on('click', () => this.unpublishAllocations());
+            $('#run-allocation-btn').on('click', () => this.runAllocation());
+
 
         } catch (error) {
             console.error('Error loading allocation management:', error);
@@ -1820,6 +2134,14 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
     // Add this method to handle the enhanced system settings events
     attachEnhancedSystemSettingsEvents() {
+        // Remove any existing event handlers to prevent duplicates
+        $('#preference-deadline-form').off('submit');
+        $('#title-submission-deadline-form').off('submit');
+        $('#clear-preference-deadline').off('click');
+        $('#clear-title-deadline').off('click');
+        $('#mark-allocation-completed').off('click');
+        $('#mark-allocation-pending').off('click');
+
         // Save preference deadline
         $('#preference-deadline-form').on('submit', (e) => this.handleSavePreferenceDeadline(e));
 
@@ -1859,6 +2181,131 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
             this.loadSystemSettings();
         } catch (error) {
             await SweetAlert.error('Error saving title submission deadline: ' + (error.responseJSON?.message || 'Unknown error'));
+        }
+    }
+
+    async handleSavePreferenceDeadline(e) {
+        e.preventDefault();
+
+        const deadline = $('#preference-deadline').val();
+
+        if (!deadline) {
+            await SweetAlert.error('Please select a deadline date and time');
+            return;
+        }
+
+        try {
+            await $.ajax({
+                url: '/api/system-settings/preference-deadline',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ deadline })
+            });
+
+            await SweetAlert.success('Preference deadline saved successfully!');
+            this.loadSystemSettings();
+        } catch (error) {
+            await SweetAlert.error('Error saving preference deadline: ' + (error.responseJSON?.message || 'Unknown error'));
+        }
+    }
+
+    async handleSaveTitleSubmissionDeadline(e) {
+        e.preventDefault();
+
+        const deadline = $('#title-submission-deadline').val();
+
+        if (!deadline) {
+            await SweetAlert.error('Please select a deadline date and time');
+            return;
+        }
+
+        try {
+            await $.ajax({
+                url: '/api/system-settings/title-submission-deadline',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ deadline })
+            });
+
+            await SweetAlert.success('Title submission deadline saved successfully!');
+            this.loadSystemSettings();
+        } catch (error) {
+            await SweetAlert.error('Error saving title submission deadline: ' + (error.responseJSON?.message || 'Unknown error'));
+        }
+    }
+
+    async handleClearPreferenceDeadline() {
+        const result = await SweetAlert.confirm(
+            'Clear Preference Deadline?',
+            'This will remove the preference deadline and allow students to edit preferences at any time.'
+        );
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await $.ajax({
+                url: '/api/system-settings/preference-deadline',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ deadline: null })
+            });
+
+            await SweetAlert.success('Preference deadline cleared successfully!');
+            this.loadSystemSettings();
+        } catch (error) {
+            await SweetAlert.error('Error clearing preference deadline: ' + (error.responseJSON?.message || 'Unknown error'));
+        }
+    }
+
+    async handleClearTitleSubmissionDeadline() {
+        const result = await SweetAlert.confirm(
+            'Clear Title Submission Deadline?',
+            'This will remove the title submission deadline and allow supervisors to edit titles at any time.'
+        );
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await $.ajax({
+                url: '/api/system-settings/title-submission-deadline',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ deadline: null })
+            });
+
+            await SweetAlert.success('Title submission deadline cleared successfully!');
+            this.loadSystemSettings();
+        } catch (error) {
+            await SweetAlert.error('Error clearing title submission deadline: ' + (error.responseJSON?.message || 'Unknown error'));
+        }
+    }
+
+    async handleSetAllocationStatus(completed) {
+        const action = completed ? 'complete' : 'revert to pending';
+        const result = await SweetAlert.confirm(
+            `Mark Allocation as ${completed ? 'Completed' : 'Pending'}?`,
+            `This will ${action} the allocation process. Students will ${completed ? 'be able to view their allocations' : 'no longer see their allocations'}.`
+        );
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await $.ajax({
+                url: '/api/system-settings/allocation-completed',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                contentType: 'application/json',
+                data: JSON.stringify({ completed })
+            });
+
+            await SweetAlert.success(`Allocation status updated to ${completed ? 'completed' : 'pending'}!`);
+            this.loadSystemSettings();
+        } catch (error) {
+            await SweetAlert.error('Error updating allocation status: ' + (error.responseJSON?.message || 'Unknown error'));
         }
     }
 

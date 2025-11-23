@@ -6,18 +6,60 @@ class Auth {
     }
 
     init() {
-        if (this.token && this.user) {
-            this.showMainApp();
-        } else {
-            this.showLogin();
-        }
+        // Show loading screen immediately
+        this.showGlobalLoading();
+
+        // Check auth after a brief delay to ensure loading screen is visible
+        setTimeout(() => {
+            if (this.token && this.user) {
+                this.verifyTokenAndProceed();
+            } else {
+                this.hideGlobalLoading();
+                this.showLogin();
+            }
+        }, 100);
 
         $('#login-form').on('submit', (e) => this.handleLogin(e));
         $('#logout-btn').on('click', () => this.handleLogout());
     }
 
+    async verifyTokenAndProceed() {
+        try {
+            // Verify token is still valid
+            const response = await $.ajax({
+                url: '/api/auth/verify',
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            // Token is valid, proceed to main app
+            this.hideGlobalLoading();
+            this.showMainApp();
+        } catch (error) {
+            // Token invalid or expired
+            console.error('Token verification failed:', error);
+            this.handleInvalidToken();
+        }
+    }
+
+    handleInvalidToken() {
+        // Clear invalid credentials
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        this.token = null;
+        this.user = null;
+
+        this.hideGlobalLoading();
+        this.showLogin();
+    }
+
     async handleLogin(e) {
         e.preventDefault();
+
+        // Show loading on login form
+        $('#login-btn').prop('disabled', true).html('Logging in...');
 
         const username = $('#username').val();
         const password = $('#password').val();
@@ -36,11 +78,16 @@ class Auth {
             localStorage.setItem('token', this.token);
             localStorage.setItem('user', JSON.stringify(this.user));
 
-            this.showMainApp();
+            // Show global loading before transitioning to main app
+            this.showGlobalLoading();
+            setTimeout(() => {
+                this.hideGlobalLoading();
+                this.showMainApp();
+            }, 500);
+
         } catch (error) {
             await SweetAlert.error('Invalid Credentials');
-
-            // $('#login-error').text('Invalid credentials').removeClass('hidden');
+            $('#login-btn').prop('disabled', false).html('Login');
         }
     }
 
@@ -49,7 +96,21 @@ class Auth {
         localStorage.removeItem('user');
         this.token = null;
         this.user = null;
-        this.showLogin();
+
+        // Show loading briefly during logout transition
+        this.showGlobalLoading();
+        setTimeout(() => {
+            this.hideGlobalLoading();
+            this.showLogin();
+        }, 300);
+    }
+
+    showGlobalLoading() {
+        $('#global-loading-screen').removeClass('hidden');
+    }
+
+    hideGlobalLoading() {
+        $('#global-loading-screen').addClass('hidden');
     }
 
     showLogin() {
@@ -57,6 +118,7 @@ class Auth {
         $('#main-app').addClass('hidden');
         $('#login-form')[0].reset();
         $('#login-error').addClass('hidden');
+        $('#login-btn').prop('disabled', false).html('Login');
     }
 
     showMainApp() {
@@ -68,6 +130,7 @@ class Auth {
         // Load appropriate dashboard based on role
         this.loadDashboard();
     }
+
 
     loadDashboard() {
         const role = this.user.role;

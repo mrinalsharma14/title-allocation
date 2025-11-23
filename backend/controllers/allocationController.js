@@ -213,10 +213,10 @@ class ComprehensiveAllocation {
     const studentsWithApprovedCustom = new Set();
     const studentsWithRejectedCustom = new Set();
     const studentsWithPendingCustom = new Set();
-    
+
     preferences.forEach(pref => {
       studentsWithPreferences.add(pref.studentId.toString());
-      
+
       if (pref.customTitle) {
         if (pref.customTitle.status === 'approved') {
           studentsWithApprovedCustom.add(pref.studentId.toString());
@@ -229,7 +229,7 @@ class ComprehensiveAllocation {
     });
 
     // Students without any preferences
-    const studentsWithoutPreferences = this.students.filter(student => 
+    const studentsWithoutPreferences = this.students.filter(student =>
       !studentsWithPreferences.has(student._id.toString())
     );
 
@@ -238,7 +238,7 @@ class ComprehensiveAllocation {
       studentsWithRejectedCustom: Array.from(studentsWithRejectedCustom),
       studentsWithPendingCustom: Array.from(studentsWithPendingCustom),
       studentsWithoutPreferences: studentsWithoutPreferences,
-      studentsWithRegularPreferences: preferences.filter(pref => 
+      studentsWithRegularPreferences: preferences.filter(pref =>
         !studentsWithApprovedCustom.has(pref.studentId.toString())
       )
     };
@@ -257,15 +257,15 @@ class ComprehensiveAllocation {
         if (pref.customTitle.approvedSupervisorId) {
           supervisor = this.supervisors.find(s => s._id.toString() === pref.customTitle.approvedSupervisorId.toString());
         } else {
-          supervisor = this.supervisors.find(s => 
-            s.username === pref.customTitle.supervisorUsername || 
+          supervisor = this.supervisors.find(s =>
+            s.username === pref.customTitle.supervisorUsername ||
             s.name === pref.customTitle.supervisorName
           );
         }
 
         if (supervisor && student) {
           const supervisorId = supervisor._id.toString();
-          
+
           if (this.supervisorCapacity.has(supervisorId)) {
             const cap = this.supervisorCapacity.get(supervisorId);
 
@@ -288,7 +288,7 @@ class ComprehensiveAllocation {
               customTitleAllocations.push(allocation);
               this.allocations.set(`${student._id}-custom`, allocation);
               this.studentMatches.set(student._id.toString(), allocation);
-              
+
               // Update capacity
               cap.current++;
               cap.remaining--;
@@ -325,7 +325,7 @@ class ComprehensiveAllocation {
   // Allocate students without any preferences - NEW IMPLEMENTATION
   allocateStudentsWithoutPreferences(studentsWithoutPrefs) {
     const allocations = [];
-    
+
     if (studentsWithoutPrefs.length === 0) return allocations;
 
     // Get supervisors with remaining capacity, sorted by most capacity first
@@ -345,10 +345,10 @@ class ComprehensiveAllocation {
 
     // Distribute students evenly to use 100% of supervisor capacity
     let studentIndex = 0;
-    
+
     while (studentIndex < studentsWithoutPrefs.length && availableSupervisors.length > 0) {
       const student = studentsWithoutPrefs[studentIndex];
-      
+
       // Find the supervisor with the most remaining capacity
       availableSupervisors.sort((a, b) => b.remaining - a.remaining);
       const supervisor = availableSupervisors[0];
@@ -375,7 +375,7 @@ class ComprehensiveAllocation {
       // Update supervisor capacity
       supervisor.current++;
       supervisor.remaining--;
-      
+
       // Update the main capacity map
       const cap = this.supervisorCapacity.get(supervisor.supervisorId);
       cap.current = supervisor.current;
@@ -400,7 +400,7 @@ class ComprehensiveAllocation {
       // Find any supervisor with remaining capacity
       const availableSupervisor = Array.from(this.supervisorCapacity.entries())
         .find(([_, cap]) => cap.remaining > 0);
-      
+
       let supervisor = null;
       if (availableSupervisor) {
         supervisor = this.supervisors.find(s => s._id.toString() === availableSupervisor[0]);
@@ -410,16 +410,16 @@ class ComprehensiveAllocation {
         studentId: student.studentId,
         studentName: student.studentName,
         studentUsername: student.studentUsername,
-        titleId: student.preferences && student.preferences.length > 0 ? 
-                 student.preferences[0].titleId : new ObjectId(),
-        title: student.preferences && student.preferences.length > 0 ? 
-               student.preferences[0].title : 'To decide with supervisor',
+        titleId: student.preferences && student.preferences.length > 0 ?
+          student.preferences[0].titleId : new ObjectId(),
+        title: student.preferences && student.preferences.length > 0 ?
+          student.preferences[0].title : 'To decide with supervisor',
         supervisorId: supervisor ? supervisor._id : null,
         supervisorName: supervisor ? supervisor.name : null,
-        originalSupervisorId: student.preferences && student.preferences.length > 0 ? 
-                             this.titles.find(t => t._id.toString() === student.preferences[0].titleId.toString())?.supervisorId : null,
-        originalSupervisorName: student.preferences && student.preferences.length > 0 ? 
-                               this.titles.find(t => t._id.toString() === student.preferences[0].titleId.toString())?.supervisorName : null,
+        originalSupervisorId: student.preferences && student.preferences.length > 0 ?
+          this.titles.find(t => t._id.toString() === student.preferences[0].titleId.toString())?.supervisorId : null,
+        originalSupervisorName: student.preferences && student.preferences.length > 0 ?
+          this.titles.find(t => t._id.toString() === student.preferences[0].titleId.toString())?.supervisorName : null,
         isCustomTitle: false,
         needsSupervisor: !supervisor, // Only need supervisor if we couldn't find one
         preferenceRank: student.preferences && student.preferences.length > 0 ? student.preferences[0].rank : null,
@@ -451,7 +451,7 @@ class ComprehensiveAllocation {
 
     // Categorize students
     const categories = this.categorizeStudents(preferences);
-    
+
     console.log('Student Categories:', {
       totalStudents: this.students.length,
       withPreferences: preferences.length,
@@ -501,7 +501,7 @@ class ComprehensiveAllocation {
 
     // Verify all students are allocated and check capacity constraints
     const allocatedStudentIds = new Set(allAllocations.map(a => a.studentId.toString()));
-    const unallocatedStudents = this.students.filter(student => 
+    const unallocatedStudents = this.students.filter(student =>
       !allocatedStudentIds.has(student._id.toString())
     );
 
@@ -510,9 +510,9 @@ class ComprehensiveAllocation {
       .filter(([_, cap]) => cap.current > cap.capacity);
 
     if (unallocatedStudents.length > 0) {
-      console.error(`${unallocatedStudents.length} students could not be allocated:`, 
+      console.error(`${unallocatedStudents.length} students could not be allocated:`,
         unallocatedStudents.map(s => s.name));
-      
+
       // Instead of emergency allocation, notify admin
       capacityConflicts.push({
         conflictType: 'UNALLOCATED_STUDENTS',
@@ -527,7 +527,7 @@ class ComprehensiveAllocation {
 
     if (overCapacitySupervisors.length > 0) {
       console.error('Capacity violation detected:', overCapacitySupervisors);
-      
+
       overCapacitySupervisors.forEach(([supervisorId, cap]) => {
         const supervisor = this.supervisors.find(s => s._id.toString() === supervisorId);
         capacityConflicts.push({
@@ -561,8 +561,8 @@ class ComprehensiveAllocation {
       totalCapacity: totalCapacity,
       totalAllocated: totalAllocated,
       unallocatedStudents: unallocatedStudents.length,
-      studentsWithPreferences: categories.studentsWithRegularPreferences.length + 
-                              categories.studentsWithApprovedCustom.length,
+      studentsWithPreferences: categories.studentsWithRegularPreferences.length +
+        categories.studentsWithApprovedCustom.length,
       studentsWithoutPreferences: categories.studentsWithoutPreferences.length,
       studentsWithApprovedCustomTitles: allocations.filter(a => a.isApprovedCustomTitle).length,
       studentsWithRejectedCustomTitles: categories.studentsWithRejectedCustom.length,
@@ -762,13 +762,13 @@ const runAllocation = async (req, res) => {
     }
 
     // Calculate total capacity and verify it matches student count
-    const totalCapacity = supervisors.reduce((sum, supervisor) => 
+    const totalCapacity = supervisors.reduce((sum, supervisor) =>
       sum + (supervisor.capacity || 0), 0
     );
 
     if (totalCapacity !== students.length) {
-      return res.status(400).json({ 
-        message: `Capacity mismatch: Total supervisor capacity (${totalCapacity}) does not match number of students (${students.length}). Please adjust supervisor capacities.` 
+      return res.status(400).json({
+        message: `Capacity mismatch: Total supervisor capacity (${totalCapacity}) does not match number of students (${students.length}). Please adjust supervisor capacities.`
       });
     }
 
@@ -841,6 +841,58 @@ const runAllocation = async (req, res) => {
   }
 };
 
+const adminBatchUpdateSupervisors = async (req, res) => {
+  try {
+    const { changes } = req.body;
+    if (!changes || !Array.isArray(changes)) return res.status(400).json({ message: 'Invalid changes' });
+
+    const settings = await SystemSettings.getSettings();
+    if (settings.allocationPublished) {
+      return res.status(400).json({ message: 'Cannot edit after publishing. Unpublish first.' });
+    }
+
+    const supervisors = await User.getAllByRole('supervisor');
+    const allocations = await Allocation.getAll();
+
+    // Build capacity map
+    const capacityMap = new Map();
+    supervisors.forEach(s => capacityMap.set(s._id.toString(), { capacity: s.capacity || 0, current: 0 }));
+
+    allocations.forEach(a => {
+      if (a.supervisorId && capacityMap.has(a.supervisorId.toString())) {
+        capacityMap.get(a.supervisorId.toString()).current++;
+      }
+    });
+
+    // Simulate changes
+    for (const { allocationId, newSupervisorId } of changes) {
+      const alloc = allocations.find(a => a._id.toString() === allocationId);
+      if (!alloc) continue;
+      if (alloc.supervisorId && capacityMap.has(alloc.supervisorId.toString())) {
+        capacityMap.get(alloc.supervisorId.toString()).current--;
+      }
+      if (capacityMap.has(newSupervisorId)) {
+        capacityMap.get(newSupervisorId).current++;
+      }
+    }
+
+    // Check capacity
+    const overCapacity = [...capacityMap.entries()].filter(([_, v]) => v.current > v.capacity);
+    if (overCapacity.length > 0) {
+      return res.status(400).json({ message: 'Capacity exceeded for some supervisors', errors: overCapacity.map(([id, v]) => `${id}: ${v.current}/${v.capacity}`) });
+    }
+
+    // Apply changes
+    for (const { allocationId, newSupervisorId } of changes) {
+      const sup = supervisors.find(s => s._id.toString() === newSupervisorId);
+      await Allocation.updateSupervisor(allocationId, sup._id, sup.name);
+    }
+
+    res.json({ message: 'Changes saved successfully', updatedCount: changes.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Error saving changes: ' + err.message });
+  }
+};
 
 const publishAllocations = async (req, res) => {
   try {
@@ -937,7 +989,8 @@ module.exports = {
   runAllocation,
   getAllocations,
   getAllocationStats,
+  adminBatchUpdateSupervisors,
   publishAllocations,
   unpublishAllocations,
-  ComprehensiveAllocation
+  ComprehensiveAllocation,
 };

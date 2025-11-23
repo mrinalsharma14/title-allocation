@@ -18,6 +18,14 @@
 </head>
 
 <body class="bg-gray-100 min-h-screen">
+    <!-- Add this right after the opening body tag -->
+    <div id="global-loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-4 text-gray-600">Loading...</p>
+        </div>
+    </div>
+
     <div id="app">
         <!-- Login Page -->
         <div id="login-page" class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">

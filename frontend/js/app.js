@@ -2,6 +2,18 @@ class App {
     constructor() {
         this.currentUser = null;
         this.apiCache = window.apiCache;
+
+        // Wait for auth to be ready before initializing
+        this.waitForAuthAndInit();
+    }
+
+    async waitForAuthAndInit() {
+        // Wait until auth check is complete
+        while (!window.auth || !window.auth.user) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        this.currentUser = window.auth.user;
         this.init();
     }
 
@@ -9,7 +21,7 @@ class App {
         console.log('App initialized with caching');
         this.checkAuthStatus();
         this.initGlobalListeners();
-        
+
         // Preload common data if user is logged in
         if (this.currentUser) {
             setTimeout(() => {
@@ -21,7 +33,7 @@ class App {
     checkAuthStatus() {
         const user = JSON.parse(localStorage.getItem('user') || 'null');
         const token = localStorage.getItem('token');
-        
+
         if (user && token) {
             this.currentUser = user;
             console.log(`User authenticated: ${user.name} (${user.role})`);
@@ -43,7 +55,7 @@ class App {
         $(document).on('click', '.dashboard-card', (e) => {
             const cardId = $(e.currentTarget).attr('id');
             console.log(`Dashboard card clicked: ${cardId}`);
-            
+
             setTimeout(() => {
                 this.apiCache.preloadCommonData();
             }, 500);
@@ -77,7 +89,7 @@ class App {
     // Enhanced API call with caching and error handling
     async apiCall(url, options = {}) {
         const startTime = Date.now();
-        
+
         try {
             console.log(`[API] Making request to: ${url}`);
             const data = await this.apiCache.call(url, options);
@@ -87,27 +99,27 @@ class App {
         } catch (error) {
             const duration = Date.now() - startTime;
             console.error(`[API] Request failed after ${duration}ms: ${url}`, error);
-            
+
             // Check if we have cached data to fall back to
             const cacheKey = this.apiCache.cacheManager.generateKey(url, options.data);
             const cachedData = this.apiCache.cacheManager.get(cacheKey);
-            
+
             if (cachedData && this.isNetworkError(error)) {
                 console.log(`[API] Using cached data as fallback for: ${url}`);
                 this.showWarning('Using cached data (offline mode)');
                 return cachedData;
             }
-            
+
             throw error;
         }
     }
 
     // Check if error is network-related
     isNetworkError(error) {
-        return !navigator.onLine || 
-               error.message.includes('Network') || 
-               error.message.includes('Failed to fetch') ||
-               error.status === 0;
+        return !navigator.onLine ||
+            error.message.includes('Network') ||
+            error.message.includes('Failed to fetch') ||
+            error.status === 0;
     }
 
     // Show offline warning
@@ -124,7 +136,7 @@ class App {
             </div>
         `;
         $('body').append(warningHtml);
-        
+
         // Auto-remove when online
         const checkOnline = setInterval(() => {
             if (navigator.onLine) {
@@ -142,7 +154,7 @@ class App {
             </div>
         `;
         $('body').append(warningHtml);
-        
+
         setTimeout(() => {
             $('.temp-warning').remove();
         }, 3000);
@@ -183,16 +195,16 @@ class App {
     // Periodic cache maintenance
     performCacheMaintenance() {
         console.log('[Cache] Performing periodic maintenance');
-        
+
         // Clean up expired entries
         window.cacheManager.cleanupExpired();
-        
+
         // Check cache size and warn if too large
         const stats = window.cacheManager.getStats();
         if (stats.totalEntries > 100) {
             console.warn(`[Cache] Large cache detected: ${stats.totalEntries} entries, ${stats.totalSize}`);
         }
-        
+
         // Preload data if user is active
         if (this.currentUser && document.hasFocus()) {
             this.apiCache.preloadCommonData();
@@ -284,7 +296,7 @@ class App {
     // Debounced API call for search inputs
     createDebouncedApiCall(delay = 300) {
         let timeoutId;
-        
+
         return (url, options, callback) => {
             clearTimeout(timeoutId);
             timeoutId = setTimeout(async () => {
@@ -307,14 +319,14 @@ class App {
     clearCacheByPattern(pattern) {
         const keys = Object.keys(localStorage);
         let clearedCount = 0;
-        
+
         keys.forEach(key => {
             if (key.includes(pattern)) {
                 window.cacheManager.remove(key);
                 clearedCount++;
             }
         });
-        
+
         console.log(`[Cache] Cleared ${clearedCount} entries matching pattern: ${pattern}`);
         return clearedCount;
     }
@@ -322,7 +334,7 @@ class App {
     // Preload data for specific user role
     preloadRoleSpecificData(role) {
         console.log(`[Cache] Preloading data for role: ${role}`);
-        
+
         const preloadUrls = {
             student: [
                 '/api/titles',
@@ -357,7 +369,7 @@ class App {
 }
 
 // Enhanced AJAX error handler with caching support
-$(document).ajaxError(function(event, jqxhr, settings, thrownError) {
+$(document).ajaxError(function (event, jqxhr, settings, thrownError) {
     console.error(`AJAX Error: ${settings.url}`, {
         status: jqxhr.status,
         statusText: jqxhr.statusText,
@@ -382,11 +394,11 @@ $(document).ajaxError(function(event, jqxhr, settings, thrownError) {
     // Handle server errors
     if (jqxhr.status >= 500) {
         const errorMessage = 'Server error. Please try again later.';
-        
+
         // Check if we have cached data for this request
         const cacheKey = window.cacheManager.generateKey(settings.url);
         const cachedData = window.cacheManager.get(cacheKey);
-        
+
         if (cachedData) {
             console.log('Server error - using cached data as fallback');
             SweetAlert.warning('Server temporarily unavailable. Using cached data.');
@@ -400,7 +412,7 @@ $(document).ajaxError(function(event, jqxhr, settings, thrownError) {
     if (jqxhr.status === 0 || !navigator.onLine) {
         const cacheKey = window.cacheManager.generateKey(settings.url);
         const cachedData = window.cacheManager.get(cacheKey);
-        
+
         if (cachedData) {
             console.log('Network error - using cached data as fallback');
             SweetAlert.warning('Network connection lost. Using cached data.');
@@ -416,13 +428,13 @@ $(document).ready(() => {
     // Don't initialize if window.app already exists
     if (!window.app) {
         window.app = new App();
-        
+
         // Add app to window for debugging
         if (typeof console !== 'undefined') {
             console.log('App instance created and available as window.app');
         }
     }
-    
+
     // Add cache stats to console for debugging
     if (typeof console !== 'undefined' && window.app) {
         console.log('Cache stats:', window.app.getCacheStats());
