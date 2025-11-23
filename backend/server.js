@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
@@ -21,6 +22,7 @@ const secondMarkerRoutes = require('./routes/secondMarkerRoutes');
 
 const { connectDB } = require('./config/database');
 
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -30,15 +32,29 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com", "https://code.jquery.com", "https://cdn.jsdelivr.net"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
+      objectSrc: ["'none'"]
     },
   },
   crossOriginEmbedderPolicy: false
 }));
 
+// Disable X-Powered-By header
+app.disable('x-powered-by');
+
 // Rate Limiting
+// ON LOGIN PAGE
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many login attempts, please try again later.'
+});
+app.use('/api/auth/login', loginLimiter);
+
+
+// GLOBAL
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000, // limit each IP to 100 requests per windowMs
