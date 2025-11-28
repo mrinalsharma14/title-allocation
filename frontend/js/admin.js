@@ -3685,32 +3685,38 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
         const resultsContainer = $('#second-marker-results');
 
         let html = `
-        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <h3 class="font-semibold text-green-800 mb-2">Assignment Completed Successfully</h3>
-            <p class="text-green-700">Assigned second markers for ${data.assignments.length} students.</p>
-        </div>
-    `;
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <h3 class="font-semibold text-green-800 mb-2">Assignment Completed Successfully</h3>
+        <p class="text-green-700">Assigned second markers for ${data.assignments.length} students.</p>
+        <p class="text-green-700">Pairing Efficiency: ${data.statistics.pairingEfficiency} (higher is better)</p>
+    </div>
+`;
 
         // Display statistics
         if (data.statistics && data.statistics.supervisorPairStats) {
             html += `
-            <div class="mb-6">
-                <h3 class="text-lg font-semibold mb-4">Supervisor Pairing Statistics</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        `;
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-4">Supervisor Pairing Statistics</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    `;
 
             data.statistics.supervisorPairStats.forEach(stat => {
+                const balanceStatus = stat.isBalanced ?
+                    '<span class="text-green-600">✓ Balanced</span>' :
+                    '<span class="text-red-600">✗ Imbalanced</span>';
+
                 html += `
-                <div class="bg-white border rounded-lg p-4">
-                    <h4 class="font-semibold mb-2">${stat.supervisorName}</h4>
-                    <div class="text-sm space-y-1">
-                        <p>Supervises: <span class="font-semibold">${stat.supervisionCount}</span> students</p>
-                        <p>Second Marks: <span class="font-semibold">${stat.secondMarkingCount}</span> students</p>
-                        <p>Works with: <span class="font-semibold">${stat.uniquePairs}</span> second markers</p>
-                        <p class="text-xs text-gray-600 mt-2">Partners: ${stat.pairs.join(', ') || 'None'}</p>
-                    </div>
+            <div class="bg-white border rounded-lg p-4">
+                <h4 class="font-semibold mb-2">${stat.supervisorName}</h4>
+                <div class="text-sm space-y-1">
+                    <p>Supervises: <span class="font-semibold">${stat.supervisionCount}</span> students</p>
+                    <p>Second Marks: <span class="font-semibold">${stat.secondMarkingCount}</span> students</p>
+                    <p>Works with: <span class="font-semibold">${stat.uniquePairs}</span> second markers</p>
+                    <p>Status: ${balanceStatus}</p>
+                    <p class="text-xs text-gray-600 mt-2">Partners: ${stat.pairs.join(', ') || 'None'}</p>
                 </div>
-            `;
+            </div>
+        `;
             });
 
             html += `</div></div>`;
@@ -3721,6 +3727,7 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
 
         resultsContainer.html(html);
     }
+
 
     displaySecondMarkerAssignments(assignments) {
         const resultsContainer = $('#second-marker-results');
@@ -3740,46 +3747,47 @@ admin2,password123,admin,Admin User,admin2@mdx.ac.mu,
     renderSecondMarkerAssignmentsTable(assignments) {
         if (!assignments || assignments.length === 0) {
             return `
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-                <p class="text-yellow-700">No second marker assignments found.</p>
-                <p class="text-yellow-600 text-sm mt-2">Click "Assign Second Markers" to generate assignments.</p>
-            </div>
-        `;
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+            <p class="text-yellow-700">No second marker assignments found.</p>
+            <p class="text-yellow-600 text-sm mt-2">Click "Assign Second Markers" to generate assignments.</p>
+        </div>
+    `;
         }
 
         let html = `
-        <div class="overflow-x-auto">
-            <table class="min-w-full table-auto border-collapse">
-                <thead>
-                    <tr class="bg-gray-50">
-                        <th class="border px-4 py-2 text-left">Student ID</th>
-                        <th class="border px-4 py-2 text-left">Student Name</th>
-                        <th class="border px-4 py-2 text-left">Project Title</th>
-                        <th class="border px-4 py-2 text-left">Supervisor</th>
-                        <th class="border px-4 py-2 text-left">2nd Marker</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+    <div class="overflow-x-auto">
+        <table class="min-w-full table-auto border-collapse">
+            <thead>
+                <tr class="bg-gray-50">
+                    <th class="border px-4 py-2 text-left">Student ID</th>
+                    <th class="border px-4 py-2 text-left">Student Name</th>
+                    <th class="border px-4 py-2 text-left">Project Title</th>
+                    <th class="border px-4 py-2 text-left">Supervisor</th>
+                    <th class="border px-4 py-2 text-left">2nd Marker</th>
+                </tr>
+            </thead>
+            <tbody>
+`;
 
         assignments.forEach(assignment => {
             html += `
-            <tr class="hover:bg-gray-50">
-                <td class="border px-4 py-2">${assignment.studentUsername}</td>
-                <td class="border px-4 py-2">${assignment.studentName}</td>
-                <td class="border px-4 py-2">${assignment.title}</td>
-                <td class="border px-4 py-2">${assignment.supervisorName}</td>
-                <td class="border px-4 py-2 ${assignment.secondMarkerName === 'Not Assigned' ? 'text-red-600 font-semibold' : ''}">
-                    ${assignment.secondMarkerName}
-                </td>
-            </tr>
-        `;
+        <tr class="hover:bg-gray-50">
+            <td class="border px-4 py-2">${assignment.studentUsername}</td>
+            <td class="border px-4 py-2">${assignment.studentName}</td>
+            <td class="border px-4 py-2">${assignment.title}</td>
+            <td class="border px-4 py-2">${assignment.supervisorName}</td>
+            <td class="border px-4 py-2 ${assignment.secondMarkerName === 'Not Assigned' ? 'text-red-600 font-semibold' : ''}">
+                ${assignment.secondMarkerName}
+            </td>
+        </tr>
+    `;
         });
 
         html += `</tbody></table></div>`;
 
         return html;
     }
+
 
 
     attachCustomTitleEventListeners() {
